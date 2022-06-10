@@ -16,6 +16,25 @@ from struct import unpack
 import numpy as np
 
 # %%
+# Initialize the very large REGISTER
+_sz = 1000
+REGISTER = [0] * _sz
+REGISTER[101] = 5
+REGISTER[102] = 5
+
+
+def print_register():
+    non_zeros = []
+    for j, e in enumerate(REGISTER):
+        if e == 0:
+            continue
+        non_zeros.append('{}: {}'.format(j, e))
+
+    print('>> ' + ',\t'.join(non_zeros))
+    return
+
+
+# %%
 MOTION_OPTION = [0]
 
 
@@ -25,6 +44,7 @@ def TCP(conn, addr):
     def hexOf(BUFFER): return ','.join([hex(i) for i in BUFFER])
     while True:
         try:
+            print_register()
             conn.recv_into(buffer)
             TID0 = buffer[0]  # Transaction ID	to sync
             TID1 = buffer[1]  # Transaction ID
@@ -38,10 +58,18 @@ def TCP(conn, addr):
                 LEN = buffer[10] * 256 + buffer[11]
             BYT = LEN * 2
 
-            # Add by zcc
-            # #                 0,    1,    2, 3, 4, 5, 6, 7, 8, 9
-            # cmd = array('B', [TID0, TID1, 0, 0, 0, 6, 1, 6, ])
-            # conn.send()
+            '''
+            Supported Function Codes:
+
+            1 = Read Coils or Digital Outputs
+            2 = Read Digital Inputs
+            3 = Read Holding Registers
+            4 = Read Input Registers
+            5 = Write Single Coil
+            6 = Write Single Register
+            15 = Write Coils or Digital Outputs
+            16 = Write Holding Registers
+            '''
 
             print("Received: ", hexOf(buffer[:6+buffer[5]]))
             if (FC in [1, 2, 3, 4]):  # Read Inputs or Registers
@@ -55,11 +83,10 @@ def TCP(conn, addr):
                     DATA = DAT
                 else:
                     if FC == 4:
+                        # FC: 4
+                        # Read Input Registers
                         DAT = array('B', np.array(
-                            [MOTION_OPTION[0]], dtype=np.dtype('>i2')).tobytes())
-
-                        # DAT = array('B', np.arange(
-                        #     cnt, LEN+cnt + 1000, dtype=np.dtype('>i2')).tobytes())
+                            REGISTER[ID:ID+LEN], dtype=np.dtype('>i2')).tobytes())
                         DATA = [i for i in range(cnt, LEN+cnt)]
                     else:
                         DAT = array('B', np.arange(
@@ -91,6 +118,7 @@ def TCP(conn, addr):
                     message = 'bytes: ' + str(unpack('B' * BYT, buf))
                 elif FC == 6 or FC == 16:
                     message = str(unpack('>' + 'H' * int(BYT / 2), buf))
+                    REGISTER[ID:ID+LEN] = eval(message)
 
                 if message == '(400,)':
                     MOTION_OPTION[0] = 0
@@ -128,6 +156,11 @@ app.layout = html.Div([
     html.Div(dcc.Dropdown(id='dropdown-1',
                           options=options, value=0), style=style),
     html.Br(),
+    html.Div(dcc.Slider(id='slider-1',
+                        value=0, max=100, min=0, step=1)),
+    html.Div(dcc.Slider(id='slider-2', vertical=True,
+                        value=0, max=100, min=0, step=1)),
+    html.Br(),
     html.Div(id='my-output', style=style),
 
 ])
@@ -136,21 +169,16 @@ app.layout = html.Div([
 # %%
 @app.callback(
     Output(component_id='my-output', component_property='children'),
-    Input(component_id='dropdown-1', component_property='value')
+    Input(component_id='slider-1', component_property='value'),
+    Input(component_id='slider-2', component_property='value'),
 )
-def update_output_div(input_value):
-    print(input_value)
+def update_output_div(slider1, slider2):
+    print(slider1, slider2)
 
-    if input_value == 0:
-        MOTION_OPTION[0] = 0
+    REGISTER[101] = min(100, int(slider1))
+    REGISTER[102] = min(100, int(slider2))
 
-    if input_value == 1:
-        MOTION_OPTION[0] = 1100
-
-    if input_value == 2:
-        MOTION_OPTION[0] = 1200
-
-    output = 'Success, {}, {}'.format(input_value, MOTION_OPTION)
+    output = 'Success, slider-1: {}, slider-2: {}'.format(slider1, slider2)
     return output
 
 
@@ -162,6 +190,7 @@ if __name__ == '__main__':
     # except:
     #     pass
 
+    # Wait for connect form UR
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.bind(('', 502))
     s.listen(1)
@@ -169,26 +198,31 @@ if __name__ == '__main__':
     conn, addr = s.accept()
     print("Connected by", addr[0])
 
-    kwargs = dict(host='0.0.0.0', debug=False)
-    a = threading.Thread(target=app.run_server, kwargs=kwargs)
-    a.setDaemon(True)
-    a.start()
+    # Start HTML service
+    use_html = True
+    if use_html:
+        kwargs = dict(host='0.0.0.0', debug=False)
+        a = threading.Thread(target=app.run_server, kwargs=kwargs)
+        a.setDaemon(True)
+        a.start()
 
+    # Start Modbus service
     t = threading.Thread(target=TCP, args=(conn, addr))
     t.setDaemon(True)
     t.start()
 
+    # Terminal interaction
     while True:
         inp = input()
         if inp == 'q':
             break
 
-        MOTION_OPTION[0] = 0
+        try:
+            v = int(inp)
+        except ValueError:
+            v = 0
 
-        if inp == '1':
-            MOTION_OPTION[0] = 1100
+        REGISTER[101] = min(v, 100)
 
-        if inp == '2':
-            MOTION_OPTION[0] = 1200
 
     print('Done.')
