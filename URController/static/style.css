@@ -1,0 +1,9 @@
+div {
+    border-top: solid gray;
+}
+
+div#mouse-panel-1 {
+    width: 500px;
+    height: 500px;
+    background-color:cadetblue
+}
