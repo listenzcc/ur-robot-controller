@@ -2,6 +2,7 @@ import time
 
 from django.shortcuts import render
 from django.http import HttpResponse
+from django.http import JsonResponse
 
 from .modbusTCP import ModbusTCP
 
@@ -34,4 +35,26 @@ def upload(request):
     modbus.REGISTER[200] = int(min(x, 100) * scale)
     modbus.REGISTER[201] = int(min(y, 100) * scale)
 
-    return HttpResponse('Success, {}'.format(values))
+    # return HttpResponse('Success, {}'.format(values))
+    return JsonResponse(dict(
+        success='success',
+        x=x,
+        y=y
+    ))
+
+
+def query(request):
+    print(request)
+
+    z = modbus.REGISTER[100]
+    x = modbus.REGISTER[101]
+    y = modbus.REGISTER[102]
+    r = 0.1 * 1000
+
+    return JsonResponse(dict(
+        success='success',
+        x=x,
+        y=y,
+        z=z,
+        r=r,
+    ))
