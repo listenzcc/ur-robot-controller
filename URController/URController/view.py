@@ -30,8 +30,8 @@ def upload(request):
     x = int(values.get('x', 0))
     y = int(values.get('y', 0))
 
-    scale = 1.5
-    modbus.REGISTER[101] = int(min(x, 100) * scale)
-    modbus.REGISTER[102] = int(min(y, 100) * scale)
+    scale = 1
+    modbus.REGISTER[200] = int(min(x, 100) * scale)
+    modbus.REGISTER[201] = int(min(y, 100) * scale)
 
     return HttpResponse('Success, {}'.format(values))
